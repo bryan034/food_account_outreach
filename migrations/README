@@ -1,0 +1,42 @@
+# Database migrations
+
+Alembic manages versioned changes to the PostgreSQL schema. SQLAlchemy models
+describe the schema the application expects, while Alembic migration scripts
+describe how to move an existing database from one schema version to another.
+
+## Generated files
+
+- `../alembic.ini` is the main Alembic configuration file at the repository
+  root. It identifies the migration directory and configures logging. Database
+  credentials must not be stored in this file; `env.py` will read them from
+  environment variables.
+- `env.py` is Alembic's runtime entry point. It will build the database
+  connection and expose the SQLAlchemy `Base.metadata` registry so Alembic can
+  compare the models with the real database.
+- `script.py.mako` is the template Alembic uses when generating a new revision
+  file. It supplies the revision identifiers and the `upgrade()` and
+  `downgrade()` function structure.
+- `versions/` stores the ordered migration scripts. Each script represents one
+  reviewed schema change and links to its parent revision.
+- `README` is this guide. It documents the purpose and safe use of the migration
+  setup.
+
+After the first migration is applied, PostgreSQL will also contain an
+`alembic_version` table. Alembic uses that table to record the revision applied
+to that particular database.
+
+## Intended workflow
+
+1. Change a SQLAlchemy model.
+2. Generate a candidate migration with `alembic revision --autogenerate`.
+3. Read the generated `upgrade()` and `downgrade()` functions; autogeneration
+   is assistance, not approval.
+4. Apply the reviewed migration with `alembic upgrade head`.
+5. Run application tests against the migrated schema.
+
+Run Alembic through the project environment and load local configuration with
+`uv run --env-file .env alembic ...`.
+
+Never commit database passwords or other secrets to Alembic configuration.
+The connection and model-metadata wiring in `env.py` must be completed before
+the first migration is generated.
