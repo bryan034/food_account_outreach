@@ -62,3 +62,9 @@ def delete_restaurant(
     session.flush()
 
     return True
+
+def get_restaurant_by_id(
+    session: Session,
+    restaurant_id: int,
+) -> Restaurant | None:
+    return session.get(Restaurant, restaurant_id)
