@@ -1,5 +1,8 @@
+import pytest
+from pydantic import ValidationError
 from automate_food_places_outreach.schemas.google_places import (
     GoogleTextSearchResponse,
+    GoogleTextSearchRequest,
 )
 
 
@@ -21,3 +24,15 @@ def test_google_text_search_response_parses_places() -> None:
     assert response.places[0].display_name.text == "Example Café"
     assert response.places[0].formatted_address == "1 Example Street, Singapore"
     assert response.next_page_token == "page-two"
+
+def test_google_text_search_request_strips_whitespace() -> None:
+    request = GoogleTextSearchRequest(
+        text_query="  cafés in Singapore  ",
+    )
+
+    assert request.text_query == "cafés in Singapore"
+
+
+def test_google_text_search_request_rejects_blank_query() -> None:
+    with pytest.raises(ValidationError):
+        GoogleTextSearchRequest(text_query="   ")

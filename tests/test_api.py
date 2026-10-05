@@ -253,7 +253,8 @@ def test_delete_restaurant_endpoint() -> None:
         )
 
         assert response.status_code == status.HTTP_204_NO_CONTENT
-        assert response.content == b""
+        assert response.content == b"" #confirms there is no response body
+        # b"" represents empty bytes obj, as opposed to "" which represents empty str
 
         with SessionFactory() as session:
             deleted_restaurant = get_restaurant_by_id(

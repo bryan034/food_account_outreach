@@ -24,20 +24,22 @@ FIELD_MASK = ",".join(
 
 # fn pauses while waiting for google
 async def search_places(
-    client: httpx2.AsyncClient,
+    client: httpx2.AsyncClient, #obj that sends http request to google places api
     *,
     api_key: str,
     text_query: str,
 ) -> GoogleTextSearchResponse:
     response = await client.post(
         TEXT_SEARCH_URL,
-        headers={
+        headers={ #metadata containing credential and requested fields
             "X-Goog-Api-Key": api_key,
             "X-Goog-FieldMask": FIELD_MASK,
         },
-        json={"textQuery": text_query},
+        json={"textQuery": text_query}, #actual search instruction
     )
 
     response.raise_for_status()
 
     return GoogleTextSearchResponse.model_validate(response.json())
+    # response.json() converts json into python dicts/list
+    # model_validate is a pydantic function that makes sure response is validated

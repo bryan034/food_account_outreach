@@ -3,7 +3,9 @@ import asyncio #lib for writing concurrent code using async/await syntax
 import httpx2
 import json
 import pytest
-from automate_food_places_outreach.google_places import search_places
+from automate_food_places_outreach.google_places import (
+search_places,
+)
 
 
 def test_search_places_parses_successful_response() -> None:

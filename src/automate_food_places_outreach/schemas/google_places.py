@@ -1,5 +1,14 @@
-from pydantic import BaseModel, Field
+from typing import Annotated
+from pydantic import BaseModel, Field, StringConstraints
 
+SearchQuery = Annotated[ #attaches pydantic validation rules to that str
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        min_length=1,
+        max_length=200,
+    ),
+]
 
 class GoogleLocalizedText(BaseModel):
     text: str
@@ -27,3 +36,6 @@ class GoogleTextSearchResponse(BaseModel):
         default=None,
         alias="nextPageToken",
     )
+
+class GoogleTextSearchRequest(BaseModel):
+    text_query: SearchQuery
