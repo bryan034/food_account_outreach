@@ -29,3 +29,11 @@ class RestaurantUpdate(BaseModel):
         min_length=1,
         max_length=255,
     )
+
+
+class RestaurantDiscoveryData(BaseModel):
+    google_place_id: str = Field(min_length=1, max_length=255)
+    name: str = Field(min_length=1, max_length=255)
+    category: str | None = Field(default=None, max_length=100)
+    address: str | None = None
+    business_status: str | None = Field(default=None, max_length=50)

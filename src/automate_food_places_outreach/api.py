@@ -3,6 +3,7 @@ from typing import Annotated
 import httpx2
 
 from fastapi import Depends, FastAPI, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -19,6 +20,13 @@ from automate_food_places_outreach.dependencies import (
     require_google_places_api_key,
 )
 from automate_food_places_outreach.models.restaurant import Restaurant
+from automate_food_places_outreach.models.outreach import OutreachAttempt
+from automate_food_places_outreach.schemas.outreach import (
+    OutreachRead, OutreachSentCreate, OutreachStatus, OutreachStatusUpdate,
+)
+from automate_food_places_outreach.services.outreach import (
+    change_outreach_status, contacted_place_ids,
+)
 from automate_food_places_outreach.schemas.restaurants import (
     RestaurantCreate,
     RestaurantRead,
@@ -120,10 +128,14 @@ def delete_restaurant_endpoint(
     restaurant_id: int,
     session: Annotated[Session, Depends(get_session)],
 ) -> None:
-    was_deleted = delete_restaurant_record(
-        session,
-        restaurant_id,
-    )
+    try:
+        was_deleted = delete_restaurant_record(session, restaurant_id)
+        session.commit()
+    except IntegrityError as error:
+        session.rollback()
+        raise HTTPException(
+            status_code=409, detail="Restaurant has history and cannot be deleted.",
+        ) from error
 
     if not was_deleted:
         raise HTTPException(
@@ -166,3 +178,98 @@ async def preview_google_places(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Google Places is unavailable.",
         ) from error
+
+
+@app.post(
+    "/discovery/google-places/new-leads",
+    response_model=GoogleTextSearchResponse,
+    response_model_by_alias=False,
+)
+async def discover_new_leads(
+    payload: GoogleTextSearchRequest,
+    client: Annotated[
+        httpx2.AsyncClient,
+        Depends(get_http_client),
+    ],
+    api_key: Annotated[
+        str,
+        Depends(require_google_places_api_key),
+    ],
+    session: Annotated[Session, Depends(get_session)],
+) -> GoogleTextSearchResponse:
+    try:
+        search_response = await search_places(
+            client,
+            api_key=api_key,
+            text_query=payload.text_query,
+        )
+    except httpx2.HTTPStatusError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Google Places returned an error.",
+        ) from error
+    except httpx2.RequestError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google Places is unavailable.",
+        ) from error
+
+    contacted = contacted_place_ids(session, [place.id for place in search_response.places])
+    return GoogleTextSearchResponse(
+        places=[place for place in search_response.places if place.id not in contacted],
+        next_page_token=search_response.next_page_token,
+    )
+
+
+@app.post("/outreach/mark-sent", response_model=OutreachRead, status_code=201)
+def mark_outreach_sent(
+    payload: OutreachSentCreate,
+    session: Annotated[Session, Depends(get_session)],
+) -> OutreachAttempt:
+    if session.get(Restaurant, payload.restaurant_id) is None:
+        raise HTTPException(status_code=404, detail="Restaurant not found.")
+    attempt = OutreachAttempt(
+        restaurant_id=payload.restaurant_id,
+        channel=payload.channel,
+        status=OutreachStatus.SENT.value,
+        message_text=payload.message_text,
+    )
+    session.add(attempt)
+    try:
+        session.commit()
+        session.refresh(attempt)
+    except IntegrityError as error:
+        session.rollback()
+        raise HTTPException(status_code=409, detail="Restaurant already has initial outreach.") from error
+    return attempt
+
+
+@app.get("/outreach", response_model=list[OutreachRead])
+def list_outreach(
+    session: Annotated[Session, Depends(get_session)],
+    offset: int = 0,
+    limit: int = 50,
+) -> list[OutreachAttempt]:
+    if offset < 0 or not 1 <= limit <= 100:
+        raise HTTPException(status_code=422, detail="Offset must be non-negative; limit must be 1–100.")
+    return list(session.scalars(select(OutreachAttempt).order_by(OutreachAttempt.id).offset(offset).limit(limit)))
+
+
+@app.patch("/outreach/{outreach_id}/status", response_model=OutreachRead)
+def update_outreach_status(
+    outreach_id: int,
+    payload: OutreachStatusUpdate,
+    session: Annotated[Session, Depends(get_session)],
+) -> OutreachAttempt:
+    attempt = session.scalar(
+        select(OutreachAttempt).where(OutreachAttempt.id == outreach_id).with_for_update()
+    )
+    if attempt is None:
+        raise HTTPException(status_code=404, detail="Outreach not found.")
+    try:
+        change_outreach_status(attempt, payload.status)
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    session.commit()
+    session.refresh(attempt)
+    return attempt

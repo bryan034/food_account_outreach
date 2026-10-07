@@ -9,10 +9,16 @@ def create_restaurant(
     *,
     google_place_id: str,
     name: str,
+    category: str | None = None,
+    address: str | None = None,
+    business_status: str | None = None,
 ) -> Restaurant:
     restaurant = Restaurant(
         google_place_id=google_place_id,
         name=name,
+        category=category,
+        address=address,
+        business_status=business_status,
     )
 
     session.add(restaurant)

@@ -39,3 +39,4 @@ class GoogleTextSearchResponse(BaseModel):
 
 class GoogleTextSearchRequest(BaseModel):
     text_query: SearchQuery
+
