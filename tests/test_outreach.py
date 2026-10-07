@@ -13,7 +13,7 @@ from automate_food_places_outreach.models.restaurant import Restaurant
 client = TestClient(app)
 
 
-@pytest.fixture
+@pytest.fixture #defines reusable setup and teardown code, dependency injection, and state management for tests in pytest
 def restaurant_id():
     with SessionFactory.begin() as session:
         restaurant = Restaurant(google_place_id=f"outreach-test-{uuid4()}", name="My café record")
@@ -68,3 +68,26 @@ def test_rejected_outreach_cannot_be_reopened(restaurant_id):
     assert client.patch(f"/outreach/{attempt_id}/status", json={"status": "rejected"}).status_code == 200
     assert client.patch(f"/outreach/{attempt_id}/status", json={"status": "scheduling"}).status_code == 409
     assert mark_sent(restaurant_id).status_code == 409
+
+def test_rejected_outreach_cannot_move_to_tasting(restaurant_id):
+    response = mark_sent(restaurant_id)
+    assert response.status_code == 201
+
+    outreach_id = response.json()["id"]
+    rejected_response = client.patch(
+        f"/outreach/{outreach_id}/status",
+        json={"status":"rejected"},
+    )
+
+    assert rejected_response.status_code == 200
+
+    tasting_response = client.patch(
+        f"outreach/{outreach_id}/status",
+        json={"status":"tasting"},
+    )
+    assert tasting_response.status_code == 409
+
+    with SessionFactory() as session: 
+        saved_attempt = session.get(OutreachAttempt, outreach_id)
+        assert saved_attempt is not None
+        assert saved_attempt.status == "rejected"
