@@ -5,7 +5,7 @@ export function createApiClient(base: string): ApiClient {
  const cache = new Map<number, Promise<Restaurant>>();
  async function request<T>(path: string, method = 'GET', data?: unknown): Promise<T> {
   let response: Response;
-  try { response = await fetch(`${base.replace(/\/$/, '')}${path}`, { method, headers: data ? {'Content-Type':'application/json'} : undefined, body: data ? JSON.stringify(data) : undefined }); } catch { throw new ApiError(0, 'The backend cannot be reached. Check the API URL, that FastAPI is running, and its CORS settings.'); }
+  try { response = await fetch(`${base.replace(/\/$/, '')}${path}`, { method, ...(data !== undefined ? {headers: {'Content-Type':'application/json'}, body: JSON.stringify(data)} : {}) }); } catch { throw new ApiError(0, 'The backend cannot be reached. Check the API URL, that FastAPI is running, and its CORS settings.'); }
   if (!response.ok) { const body = await response.json().catch(() => null); const detail = body?.detail; const readable = typeof detail === 'string' ? detail : Array.isArray(detail) ? detail.map((d: {msg?: string}) => d.msg).filter(Boolean).join('; ') : ''; throw new ApiError(response.status, readable || fallback[response.status] || `Request failed (${response.status}).`); }
   return response.json();
  }

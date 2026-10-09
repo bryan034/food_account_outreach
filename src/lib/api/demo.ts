@@ -10,7 +10,7 @@ export const demoDiscovery: Discovery = { next_page_token: 'sample-next-page-tok
 ] };
 export function createDemoClient(): ApiClient {
  const restaurants: Restaurant[] = ['Kaya House','Petal Coffee','The Noodle Social','Toast & Together','Pandan Pantry'].map((name,i)=>({id:i+1,name,google_place_id:`demo-saved-${i+1}`}));
- const rows: Outreach[] = ['sent','scheduling','tasting','completed','rejected'].map((status,i)=>({id:101+i,restaurant_id:i+1,channel:i%2?'instagram':'tiktok',status:status as Outreach['status'],message_text:`Hi! I'm Bryan, a Singapore food creator. I'd love to explore a food collaboration with ${restaurants[i].name}. Would you be open to chatting about a tasting? This is a fictional sample message, not an actual sent message.`,sent_at:`2026-10-0${8-i}T04:00:00Z`,updated_at:`2026-10-0${8-i}T04:00:00Z`}));
+ const rows: Outreach[] = ['sent','scheduling','tasting','completed','rejected'].map((status,i)=>({id:101+i,restaurant_id:i+1,channel:i%2?'instagram':'tiktok',status:status as Outreach['status'],message_text:`Hi! I'm Bryan, a Singapore food creator. I'd love to explore a food collaboration with ${restaurants[i]?.name || 'this business'}. Would you be open to chatting about a tasting? This is a fictional sample message, not an actual sent message.`,sent_at:`2026-10-0${8-i}T04:00:00Z`,updated_at:`2026-10-0${8-i}T04:00:00Z`}));
  const pause = async () => new Promise(resolve => setTimeout(resolve,350));
  return {
  health: async()=>{await pause();return {status:'ok'};}, discover: async()=>{await pause();return structuredClone(demoDiscovery);},
