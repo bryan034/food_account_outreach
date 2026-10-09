@@ -1,17 +1,374 @@
-import { useEffect, useState } from 'react';
-import { ArrowRight, ChevronLeft, ChevronRight, Info, MessageSquare, Plus, RefreshCw } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
-import { statuses, transitions, type Outreach, type Restaurant, type Status } from '@/lib/api/types';
-import { ErrorNote, formatDate, messageOf, Pending, StatusBadge } from './common';
-import { PageFooter } from './shell';
-import { SocialWorkflow } from './social-workflow';
-import { useWorkspace } from './workspace';
-const pageSize=10;
-export function OutreachPage(){
- const {api,mode}=useWorkspace();const [rows,setRows]=useState<Outreach[]>([]);const [names,setNames]=useState<Record<number,Restaurant>>({});const [lookupErrors,setLookupErrors]=useState<Record<number,string>>({});const [pending,setPending]=useState(true);const [error,setError]=useState('');const [offset,setOffset]=useState(0);const [filter,setFilter]=useState<Status|'all'>('all');const [selected,setSelected]=useState<Outreach|null>(null);const [updating,setUpdating]=useState(false);const [detailError,setDetailError]=useState('');const [compose,setCompose]=useState(false);const [refresh,setRefresh]=useState(0);
- useEffect(()=>{let active=true;setPending(true);setError('');api.outreach(offset,pageSize).then(async data=>{if(!active)return;setRows(data);const ids=[...new Set(data.map(r=>r.restaurant_id))];const results=await Promise.all(ids.map(async id=>{try{return {id,record:await api.restaurant(id)};}catch(e){return {id,error:messageOf(e)};}}));if(!active)return;const resolved:Record<number,Restaurant>={};const failures:Record<number,string>={};for(const r of results){if(r.record)resolved[r.id]=r.record;else failures[r.id]=r.error||'Restaurant unavailable';}setNames(resolved);setLookupErrors(failures);}).catch(e=>{if(active){setError(messageOf(e));setRows([]);}}).finally(()=>{if(active)setPending(false);});return()=>{active=false;};},[api,offset,refresh]);
- async function change(status:Status){if(!selected||updating)return;setUpdating(true);setDetailError('');try{const updated=await api.changeStatus(selected.id,status);setSelected(updated);setRows(prev=>prev.map(row=>row.id===updated.id?updated:row));}catch(e){setDetailError(messageOf(e));}finally{setUpdating(false);}}
- const visible=filter==='all'?rows:rows.filter(r=>r.status===filter);
- return <div className="page"><div className="heading-row"><div><div className="eyebrow">From first hello to a shared table</div><h1 className="page-heading">Your collaborations.</h1><p className="page-description">Keep every conversation and collaboration in one place.</p></div><Button onClick={()=>setCompose(true)}><Plus/>Record outreach</Button></div>{mode==='demo'&&<div className="notice-band mt-6"><Info size={15}/><span>All records and messages below are fictional samples. They do not represent actual outreach.</span></div>}<div className="filter-row" aria-label="Filter outreach by status"><span className="text-xs text-muted-foreground mr-3">Status</span>{(['all',...statuses] as const).map(s=><Button key={s} variant="ghost" className={`filter-button capitalize ${filter===s?'filter-active':''}`} onClick={()=>setFilter(s)} aria-pressed={filter===s}>{s==='all'?'All outreach':s}</Button>)}<Button className="ml-auto" variant="ghost" size="icon" title="Refresh outreach" aria-label="Refresh outreach" disabled={pending} onClick={()=>setRefresh(r=>r+1)}><RefreshCw/></Button></div><ErrorNote error={error}/>{pending?<div className="loading-state"><Pending/>Loading outreach and restaurant details…</div>:visible.length?<div className="table-wrap"><table className="outreach-table"><thead><tr><th>Restaurant</th><th>Channel</th><th>Status</th><th>Sent at · SGT</th><th className="text-right">Details</th></tr></thead><tbody>{visible.map(row=><tr key={row.id}><td><div className="table-name">{names[row.restaurant_id]?.name||`Restaurant #${row.restaurant_id}`}</div><div className="table-id">Local ID {row.restaurant_id}{lookupErrors[row.restaurant_id]&&<span className="block text-destructive">{lookupErrors[row.restaurant_id]}</span>}</div></td><td className="capitalize">{row.channel==='tiktok'?'TikTok':'Instagram'}</td><td><StatusBadge status={row.status}/></td><td className="text-muted-foreground">{formatDate(row.sent_at)}</td><td className="text-right"><Button variant="ghost" className="detail-button" aria-label={`View outreach for ${names[row.restaurant_id]?.name||row.restaurant_id}`} onClick={()=>{setSelected(row);setDetailError('');}}>View details<ArrowRight/></Button></td></tr>)}</tbody></table></div>:<div className="empty-state"><MessageSquare size={30}/><h3>{error?'Outreach could not be loaded':filter==='all'?'No outreach yet':'No matching outreach on this page'}</h3><p>{filter==='all'?'Your explicitly confirmed manual outreach will appear here.':'Try a different status or navigate to another page.'}</p>{!error&&filter==='all'&&<Button variant="outline" className="mt-5" onClick={()=>setCompose(true)}><Plus/>Record manual outreach</Button>}</div>}<div className="pagination-row"><div>Page {Math.floor(offset/pageSize)+1} · {visible.length} {filter==='all'?'records':'matching records'}<p className="mt-1 text-[10px]">Status filters apply to this page. The backend does not return a total count.</p></div><div className="flex items-center gap-3"><span>{pageSize} per page</span><Button size="sm" variant="outline" disabled={offset===0||pending} onClick={()=>setOffset(o=>Math.max(0,o-pageSize))}><ChevronLeft/>Previous</Button><Button size="sm" variant="outline" disabled={rows.length<pageSize||pending||!!error} onClick={()=>setOffset(o=>o+pageSize)}>Next<ChevronRight/></Button></div></div><div className="notice-band mt-8"><Info size={15}/><span>The original message is kept exactly as recorded. Sent history cannot be edited or deleted.</span></div><PageFooter/><Dialog open={!!selected} onOpenChange={open=>{if(!open&&!updating)setSelected(null);}}><DialogContent className="panel-dialog"><DialogTitle>{selected?names[selected.restaurant_id]?.name||`Restaurant #${selected.restaurant_id}`:'Outreach details'}</DialogTitle><DialogDescription>{mode==='demo'?'Fictional sample outreach record':'Stored outreach record'} · original message is read-only</DialogDescription>{selected&&<><dl className="panel-meta"><div><dt>LOCAL RESTAURANT ID</dt><dd>{selected.restaurant_id}</dd></div><div><dt>OUTREACH ID</dt><dd>{selected.id}</dd></div><div><dt>CHANNEL</dt><dd>{selected.channel==='tiktok'?'TikTok':'Instagram'}</dd></div><div><dt>SENT AT · SGT</dt><dd>{formatDate(selected.sent_at)}</dd></div><div><dt>GOOGLE PLACE ID</dt><dd>{names[selected.restaurant_id]?.google_place_id||'Identity unavailable'}</dd></div><div><dt>CURRENT STATUS</dt><dd><StatusBadge status={selected.status}/></dd></div></dl>{lookupErrors[selected.restaurant_id]&&<ErrorNote error={lookupErrors[selected.restaurant_id]||'Restaurant unavailable'}/>}<div className="panel-section"><h3>{mode==='demo'?'Original sample message':'Exact original message sent'}</h3><div className="message-original">{selected.message_text}</div></div><div className="panel-section"><h3>Update collaboration status</h3>{transitions[selected.status].length?<div className="flex gap-2 flex-wrap">{transitions[selected.status].map(s=><Button key={s} variant={s==='rejected'?'outline':'default'} disabled={updating} onClick={()=>change(s)}>{updating?<Pending/>:<ArrowRight/>}Move to {s}</Button>)}</div>:<p className="form-help">This collaboration is {selected.status}. This is a terminal status; no further changes are allowed.</p>}<p className="form-help mt-3">Your backend is authoritative and may reject a status change. Updated {formatDate(selected.updated_at)}.</p><ErrorNote error={detailError}/></div></>}</DialogContent></Dialog><Dialog open={compose} onOpenChange={setCompose}><DialogContent className="panel-dialog"><DialogTitle>Record manual outreach</DialogTitle><DialogDescription>{mode==='demo'?'Try the workflow with sample records only.':'First select or create a local restaurant, then confirm the exact message you manually sent.'}</DialogDescription><SocialWorkflow onRecorded={()=>{setOffset(0);setRefresh(r=>r+1);}}/></DialogContent></Dialog></div>;
+import { useEffect, useState } from "react";
+import {
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  Info,
+  MessageSquare,
+  Plus,
+  RefreshCw,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import {
+  statuses,
+  transitions,
+  type Outreach,
+  type Restaurant,
+  type Status,
+} from "@/lib/api/types";
+import { ErrorNote, formatDate, messageOf, Pending, StatusBadge } from "./common";
+import { PageFooter } from "./shell";
+import { SocialWorkflow } from "./social-workflow";
+import { useWorkspace } from "./workspace";
+const pageSize = 10;
+export function OutreachPage() {
+  const { api, mode } = useWorkspace();
+  const [rows, setRows] = useState<Outreach[]>([]);
+  const [names, setNames] = useState<Record<number, Restaurant>>({});
+  const [lookupErrors, setLookupErrors] = useState<Record<number, string>>({});
+  const [pending, setPending] = useState(true);
+  const [error, setError] = useState("");
+  const [offset, setOffset] = useState(0);
+  const [filter, setFilter] = useState<Status | "all">("all");
+  const [selected, setSelected] = useState<Outreach | null>(null);
+  const [updating, setUpdating] = useState(false);
+  const [detailError, setDetailError] = useState("");
+  const [compose, setCompose] = useState(false);
+  const [refresh, setRefresh] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setPending(true);
+    setError("");
+    api
+      .outreach(offset, pageSize)
+      .then(async (data) => {
+        if (!active) return;
+        setRows(data);
+        const ids = [...new Set(data.map((r) => r.restaurant_id))];
+        const results = await Promise.all(
+          ids.map(async (id) => {
+            try {
+              return { id, record: await api.restaurant(id) };
+            } catch (e) {
+              return { id, error: messageOf(e) };
+            }
+          }),
+        );
+        if (!active) return;
+        const resolved: Record<number, Restaurant> = {};
+        const failures: Record<number, string> = {};
+        for (const r of results) {
+          if (r.record) resolved[r.id] = r.record;
+          else failures[r.id] = r.error || "Restaurant unavailable";
+        }
+        setNames(resolved);
+        setLookupErrors(failures);
+      })
+      .catch((e) => {
+        if (active) {
+          setError(messageOf(e));
+          setRows([]);
+        }
+      })
+      .finally(() => {
+        if (active) setPending(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [api, offset, refresh]);
+  async function change(status: Status) {
+    if (!selected || updating) return;
+    setUpdating(true);
+    setDetailError("");
+    try {
+      const updated = await api.changeStatus(selected.id, status);
+      setSelected(updated);
+      setRows((prev) => prev.map((row) => (row.id === updated.id ? updated : row)));
+    } catch (e) {
+      setDetailError(messageOf(e));
+    } finally {
+      setUpdating(false);
+    }
+  }
+  const visible = filter === "all" ? rows : rows.filter((r) => r.status === filter);
+  return (
+    <div className="page">
+      <div className="heading-row">
+        <div>
+          <div className="eyebrow">From first hello to a shared table</div>
+          <h1 className="page-heading">Your collaborations.</h1>
+          <p className="page-description">
+            Keep every conversation and collaboration in one place.
+          </p>
+        </div>
+        <Button onClick={() => setCompose(true)}>
+          <Plus />
+          Record outreach
+        </Button>
+      </div>
+      {mode === "demo" && (
+        <div className="notice-band mt-6">
+          <Info size={15} />
+          <span>
+            All records and messages below are fictional samples. They do not represent actual
+            outreach.
+          </span>
+        </div>
+      )}
+      <div className="filter-row" aria-label="Filter outreach by status">
+        <span className="text-xs text-muted-foreground mr-3">Status</span>
+        {(["all", ...statuses] as const).map((s) => (
+          <Button
+            key={s}
+            variant="ghost"
+            className={`filter-button capitalize ${filter === s ? "filter-active" : ""}`}
+            onClick={() => setFilter(s)}
+            aria-pressed={filter === s}
+          >
+            {s === "all" ? "All outreach" : s}
+          </Button>
+        ))}
+        <Button
+          className="ml-auto"
+          variant="ghost"
+          size="icon"
+          title="Refresh outreach"
+          aria-label="Refresh outreach"
+          disabled={pending}
+          onClick={() => setRefresh((r) => r + 1)}
+        >
+          <RefreshCw />
+        </Button>
+      </div>
+      <ErrorNote error={error} />
+      {pending ? (
+        <div className="loading-state">
+          <Pending />
+          Loading outreach and restaurant details…
+        </div>
+      ) : visible.length ? (
+        <div className="table-wrap">
+          <table className="outreach-table">
+            <thead>
+              <tr>
+                <th>Restaurant</th>
+                <th>Channel</th>
+                <th>Status</th>
+                <th>Sent at · SGT</th>
+                <th className="text-right">Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((row) => (
+                <tr key={row.id}>
+                  <td>
+                    <div className="table-name">
+                      {names[row.restaurant_id]?.name || `Restaurant #${row.restaurant_id}`}
+                    </div>
+                    <div className="table-id">
+                      Local ID {row.restaurant_id}
+                      {lookupErrors[row.restaurant_id] && (
+                        <span className="block text-destructive">
+                          {lookupErrors[row.restaurant_id]}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="capitalize">
+                    {row.channel === "tiktok" ? "TikTok" : "Instagram"}
+                  </td>
+                  <td>
+                    <StatusBadge status={row.status} />
+                  </td>
+                  <td className="text-muted-foreground">{formatDate(row.sent_at)}</td>
+                  <td className="text-right">
+                    <Button
+                      variant="ghost"
+                      className="detail-button"
+                      aria-label={`View outreach for ${names[row.restaurant_id]?.name || row.restaurant_id}`}
+                      onClick={() => {
+                        setSelected(row);
+                        setDetailError("");
+                      }}
+                    >
+                      View details
+                      <ArrowRight />
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="empty-state">
+          <MessageSquare size={30} />
+          <h3>
+            {error
+              ? "Outreach could not be loaded"
+              : filter === "all"
+                ? "No outreach yet"
+                : "No matching outreach on this page"}
+          </h3>
+          <p>
+            {filter === "all"
+              ? "Your explicitly confirmed manual outreach will appear here."
+              : "Try a different status or navigate to another page."}
+          </p>
+          {!error && filter === "all" && (
+            <Button variant="outline" className="mt-5" onClick={() => setCompose(true)}>
+              <Plus />
+              Record manual outreach
+            </Button>
+          )}
+        </div>
+      )}
+      <div className="pagination-row">
+        <div>
+          Page {Math.floor(offset / pageSize) + 1} · {visible.length}{" "}
+          {filter === "all" ? "records" : "matching records"}
+          <p className="mt-1 text-[10px]">
+            Status filters apply to this page. The backend does not return a total count.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span>{pageSize} per page</span>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={offset === 0 || pending}
+            onClick={() => setOffset((o) => Math.max(0, o - pageSize))}
+          >
+            <ChevronLeft />
+            Previous
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={rows.length < pageSize || pending || !!error}
+            onClick={() => setOffset((o) => o + pageSize)}
+          >
+            Next
+            <ChevronRight />
+          </Button>
+        </div>
+      </div>
+      <div className="notice-band mt-8">
+        <Info size={15} />
+        <span>
+          The original message is kept exactly as recorded. Sent history cannot be edited or
+          deleted.
+        </span>
+      </div>
+      <PageFooter />
+      <Dialog
+        open={!!selected}
+        onOpenChange={(open) => {
+          if (!open && !updating) setSelected(null);
+        }}
+      >
+        <DialogContent className="panel-dialog">
+          <DialogTitle>
+            {selected
+              ? names[selected.restaurant_id]?.name || `Restaurant #${selected.restaurant_id}`
+              : "Outreach details"}
+          </DialogTitle>
+          <DialogDescription>
+            {mode === "demo" ? "Fictional sample outreach record" : "Stored outreach record"} ·
+            original message is read-only
+          </DialogDescription>
+          {selected && (
+            <>
+              <dl className="panel-meta">
+                <div>
+                  <dt>LOCAL RESTAURANT ID</dt>
+                  <dd>{selected.restaurant_id}</dd>
+                </div>
+                <div>
+                  <dt>OUTREACH ID</dt>
+                  <dd>{selected.id}</dd>
+                </div>
+                <div>
+                  <dt>CHANNEL</dt>
+                  <dd>{selected.channel === "tiktok" ? "TikTok" : "Instagram"}</dd>
+                </div>
+                <div>
+                  <dt>SENT AT · SGT</dt>
+                  <dd>{formatDate(selected.sent_at)}</dd>
+                </div>
+                <div>
+                  <dt>GOOGLE PLACE ID</dt>
+                  <dd>
+                    {names[selected.restaurant_id]?.google_place_id || "Identity unavailable"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>CURRENT STATUS</dt>
+                  <dd>
+                    <StatusBadge status={selected.status} />
+                  </dd>
+                </div>
+              </dl>
+              {lookupErrors[selected.restaurant_id] && (
+                <ErrorNote
+                  error={lookupErrors[selected.restaurant_id] || "Restaurant unavailable"}
+                />
+              )}
+              <div className="panel-section">
+                <h3>
+                  {mode === "demo" ? "Original sample message" : "Exact original message sent"}
+                </h3>
+                <div className="message-original">{selected.message_text}</div>
+              </div>
+              <div className="panel-section">
+                <h3>Update collaboration status</h3>
+                {transitions[selected.status].length ? (
+                  <div className="flex gap-2 flex-wrap">
+                    {transitions[selected.status].map((s) => (
+                      <Button
+                        key={s}
+                        variant={s === "rejected" ? "outline" : "default"}
+                        disabled={updating}
+                        onClick={() => change(s)}
+                      >
+                        {updating ? <Pending /> : <ArrowRight />}Move to {s}
+                      </Button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="form-help">
+                    This collaboration is {selected.status}. This is a terminal status; no further
+                    changes are allowed.
+                  </p>
+                )}
+                <p className="form-help mt-3">
+                  Your backend is authoritative and may reject a status change. Updated{" "}
+                  {formatDate(selected.updated_at)}.
+                </p>
+                <ErrorNote error={detailError} />
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={compose} onOpenChange={setCompose}>
+        <DialogContent className="panel-dialog">
+          <DialogTitle>Record manual outreach</DialogTitle>
+          <DialogDescription>
+            {mode === "demo"
+              ? "Try the workflow with sample records only."
+              : "First select or create a local restaurant, then confirm the exact message you manually sent."}
+          </DialogDescription>
+          <SocialWorkflow
+            onRecorded={() => {
+              setOffset(0);
+              setRefresh((r) => r + 1);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 }
