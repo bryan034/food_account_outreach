@@ -15,6 +15,7 @@ export const demoDiscovery: Discovery = {
       formatted_address: "42 Duxton Road, Singapore 089506",
       primary_type: "cafe",
       business_status: "OPERATIONAL",
+      regular_opening_hours: { weekday_descriptions: ["Monday: 8:00 AM – 5:00 PM","Tuesday: 8:00 AM – 5:00 PM","Wednesday: 8:00 AM – 5:00 PM","Thursday: 8:00 AM – 5:00 PM","Friday: 8:00 AM – 6:00 PM","Saturday: 9:00 AM – 6:00 PM","Sunday: Closed"] },
     },
     {
       id: "demo-cafe-2",
@@ -22,6 +23,7 @@ export const demoDiscovery: Discovery = {
       formatted_address: "18 Tanjong Pagar Road, Singapore 088441",
       primary_type: "cafe",
       business_status: "OPERATIONAL",
+      regular_opening_hours: { weekday_descriptions: ["Monday: 8:00 AM – 5:00 PM","Tuesday: 8:00 AM – 5:00 PM","Wednesday: 8:00 AM – 5:00 PM","Thursday: 8:00 AM – 5:00 PM","Friday: 8:00 AM – 6:00 PM","Saturday: 9:00 AM – 6:00 PM","Sunday: Closed"] },
     },
     {
       id: "demo-cafe-3",
@@ -29,6 +31,7 @@ export const demoDiscovery: Discovery = {
       formatted_address: "44 Jalan Merah Saga, Singapore 278116",
       primary_type: "dessert_shop",
       business_status: "OPERATIONAL",
+      regular_opening_hours: { weekday_descriptions: ["Monday: 8:00 AM – 5:00 PM","Tuesday: 8:00 AM – 5:00 PM","Wednesday: 8:00 AM – 5:00 PM","Thursday: 8:00 AM – 5:00 PM","Friday: 8:00 AM – 6:00 PM","Saturday: 9:00 AM – 6:00 PM","Sunday: Closed"] },
     },
     {
       id: "demo-cafe-4",
@@ -36,6 +39,7 @@ export const demoDiscovery: Discovery = {
       formatted_address: "6 Craig Road, Singapore 089666",
       primary_type: "restaurant",
       business_status: "OPERATIONAL",
+      regular_opening_hours: { weekday_descriptions: ["Monday: 8:00 AM – 5:00 PM","Tuesday: 8:00 AM – 5:00 PM","Wednesday: 8:00 AM – 5:00 PM","Thursday: 8:00 AM – 5:00 PM","Friday: 8:00 AM – 6:00 PM","Saturday: 9:00 AM – 6:00 PM","Sunday: Closed"] },
     },
     {
       id: "demo-cafe-5",
@@ -43,6 +47,7 @@ export const demoDiscovery: Discovery = {
       formatted_address: "23 Keong Saik Road, Singapore 089130",
       primary_type: "cafe",
       business_status: "OPERATIONAL",
+      regular_opening_hours: { weekday_descriptions: ["Monday: 8:00 AM – 5:00 PM","Tuesday: 8:00 AM – 5:00 PM","Wednesday: 8:00 AM – 5:00 PM","Thursday: 8:00 AM – 5:00 PM","Friday: 8:00 AM – 6:00 PM","Saturday: 9:00 AM – 6:00 PM","Sunday: Closed"] },
     },
     {
       id: "demo-cafe-6",
@@ -50,6 +55,7 @@ export const demoDiscovery: Discovery = {
       formatted_address: "9 Everton Park, Singapore 080009",
       primary_type: "coffee_shop",
       business_status: "OPERATIONAL",
+      regular_opening_hours: { weekday_descriptions: ["Monday: 8:00 AM – 5:00 PM","Tuesday: 8:00 AM – 5:00 PM","Wednesday: 8:00 AM – 5:00 PM","Thursday: 8:00 AM – 5:00 PM","Friday: 8:00 AM – 6:00 PM","Saturday: 9:00 AM – 6:00 PM","Sunday: Closed"] },
     },
   ],
 };

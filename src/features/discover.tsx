@@ -17,7 +17,6 @@ import type { Discovery, Place } from "@/lib/api/types";
 import cafeImage from "@/assets/cafe-editorial.jpg";
 import { ErrorNote, messageOf, Pending } from "./common";
 import { PageFooter } from "./shell";
-import { SocialWorkflow } from "./social-workflow";
 import { useWorkspace } from "./workspace";
 export function DiscoverPage() {
   const { api, mode } = useWorkspace();
@@ -237,12 +236,19 @@ export function DiscoverPage() {
                   <dt>BUSINESS STATUS</dt>
                   <dd>{selected.business_status || "Unavailable"}</dd>
                 </div>
-                <div>
-                  <dt>GOOGLE PLACE ID — NOT LOCAL ID</dt>
-                  <dd>{selected.id}</dd>
-                </div>
               </dl>
-              <SocialWorkflow key={selected.id} placeId={selected.id} />
+              <div className="panel-section">
+                <h3>Opening hours</h3>
+                {selected.regular_opening_hours?.weekday_descriptions?.length ? (
+                  <ul className="text-sm space-y-1">
+                    {selected.regular_opening_hours.weekday_descriptions.map((d) => (
+                      <li key={d}>{d}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="form-help">Opening hours are not available for this business.</p>
+                )}
+              </div>
               <div className="panel-section">
                 <h3>
                   Contact information <span className="coming-badge ml-2">Coming later</span>

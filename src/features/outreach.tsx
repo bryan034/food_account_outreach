@@ -6,11 +6,15 @@ import {
   Info,
   MessageSquare,
   Plus,
+  CalendarClock,
+  Navigation,
   RefreshCw,
+  Undo2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import {
+  reverts,
   statuses,
   transitions,
   type Outreach,
@@ -21,6 +25,13 @@ import { ErrorNote, formatDate, messageOf, Pending, StatusBadge } from "./common
 import { PageFooter } from "./shell";
 import { SocialWorkflow } from "./social-workflow";
 import { useWorkspace } from "./workspace";
+import {
+  directionsUrl,
+  formatTasting,
+  loadPlans,
+  TastingDialog,
+  type TastingPlan,
+} from "./tasting";
 const pageSize = 10;
 export function OutreachPage() {
   const { api, mode } = useWorkspace();
@@ -36,6 +47,9 @@ export function OutreachPage() {
   const [detailError, setDetailError] = useState("");
   const [compose, setCompose] = useState(false);
   const [refresh, setRefresh] = useState(0);
+  const [plans, setPlans] = useState<Record<number, TastingPlan>>({});
+  const [planning, setPlanning] = useState(false);
+  useEffect(() => setPlans(loadPlans()), []);
   useEffect(() => {
     let active = true;
     setPending(true);
@@ -86,6 +100,7 @@ export function OutreachPage() {
       const updated = await api.changeStatus(selected.id, status);
       setSelected(updated);
       setRows((prev) => prev.map((row) => (row.id === updated.id ? updated : row)));
+      if (status === "tasting") setPlanning(true);
     } catch (e) {
       setDetailError(messageOf(e));
     } finally {
@@ -167,20 +182,23 @@ export function OutreachPage() {
                     <div className="table-name">
                       {names[row.restaurant_id]?.name || `Restaurant #${row.restaurant_id}`}
                     </div>
-                    <div className="table-id">
-                      Local ID {row.restaurant_id}
-                      {lookupErrors[row.restaurant_id] && (
-                        <span className="block text-destructive">
-                          {lookupErrors[row.restaurant_id]}
-                        </span>
-                      )}
-                    </div>
+                    {lookupErrors[row.restaurant_id] && (
+                      <div className="table-id text-destructive">
+                        {lookupErrors[row.restaurant_id]}
+                      </div>
+                    )}
                   </td>
                   <td className="capitalize">
                     {row.channel === "tiktok" ? "TikTok" : "Instagram"}
                   </td>
                   <td>
                     <StatusBadge status={row.status} />
+                    {row.status === "tasting" && plans[row.id]?.when && (
+                      <div className="table-id mt-1 flex items-center gap-1">
+                        <CalendarClock size={11} />
+                        {formatTasting(plans[row.id]!.when)}
+                      </div>
+                    )}
                   </td>
                   <td className="text-muted-foreground">{formatDate(row.sent_at)}</td>
                   <td className="text-right">
@@ -283,26 +301,12 @@ export function OutreachPage() {
             <>
               <dl className="panel-meta">
                 <div>
-                  <dt>LOCAL RESTAURANT ID</dt>
-                  <dd>{selected.restaurant_id}</dd>
-                </div>
-                <div>
-                  <dt>OUTREACH ID</dt>
-                  <dd>{selected.id}</dd>
-                </div>
-                <div>
                   <dt>CHANNEL</dt>
                   <dd>{selected.channel === "tiktok" ? "TikTok" : "Instagram"}</dd>
                 </div>
                 <div>
                   <dt>SENT AT · SGT</dt>
                   <dd>{formatDate(selected.sent_at)}</dd>
-                </div>
-                <div>
-                  <dt>GOOGLE PLACE ID</dt>
-                  <dd>
-                    {names[selected.restaurant_id]?.google_place_id || "Identity unavailable"}
-                  </dd>
                 </div>
                 <div>
                   <dt>CURRENT STATUS</dt>
@@ -322,6 +326,44 @@ export function OutreachPage() {
                 </h3>
                 <div className="message-original">{selected.message_text}</div>
               </div>
+              {selected.status === "tasting" && (
+                <div className="panel-section">
+                  <h3>Tasting</h3>
+                  {plans[selected.id]?.when ? (
+                    <div className="text-sm space-y-1 mb-3">
+                      <p className="font-medium">{formatTasting(plans[selected.id]!.when)}</p>
+                      {plans[selected.id]!.address && <p>{plans[selected.id]!.address}</p>}
+                      {plans[selected.id]!.notes && (
+                        <p className="text-muted-foreground">{plans[selected.id]!.notes}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="form-help mb-3">No tasting planned yet.</p>
+                  )}
+                  <div className="flex gap-2 flex-wrap">
+                    <Button variant="outline" onClick={() => setPlanning(true)}>
+                      <CalendarClock />
+                      {plans[selected.id]?.when ? "Edit tasting plan" : "Plan tasting"}
+                    </Button>
+                    {plans[selected.id]?.when && (
+                      <Button variant="outline" asChild>
+                        <a
+                          href={directionsUrl(
+                            names[selected.restaurant_id]?.name || "",
+                            plans[selected.id]!.address,
+                            names[selected.restaurant_id]?.google_place_id,
+                          )}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <Navigation />
+                          Directions
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="panel-section">
                 <h3>Update collaboration status</h3>
                 {transitions[selected.status].length ? (
@@ -338,10 +380,23 @@ export function OutreachPage() {
                     ))}
                   </div>
                 ) : (
-                  <p className="form-help">
-                    This collaboration is {selected.status}. This is a terminal status; no further
-                    changes are allowed.
-                  </p>
+                  <p className="form-help">This collaboration is {selected.status}.</p>
+                )}
+                {reverts[selected.status].length > 0 && (
+                  <div className="flex gap-2 flex-wrap mt-3">
+                    {reverts[selected.status].map((s) => (
+                      <Button
+                        key={s}
+                        variant="ghost"
+                        size="sm"
+                        disabled={updating}
+                        onClick={() => change(s)}
+                      >
+                        <Undo2 />
+                        Back to {s}
+                      </Button>
+                    ))}
+                  </div>
                 )}
                 <p className="form-help mt-3">
                   Your backend is authoritative and may reject a status change. Updated{" "}
@@ -353,6 +408,16 @@ export function OutreachPage() {
           )}
         </DialogContent>
       </Dialog>
+      {selected && (
+        <TastingDialog
+          open={planning}
+          onOpenChange={setPlanning}
+          outreachId={selected.id}
+          name={names[selected.restaurant_id]?.name || "This restaurant"}
+          placeId={names[selected.restaurant_id]?.google_place_id}
+          onSaved={(plan) => setPlans((p) => ({ ...p, [selected.id]: plan }))}
+        />
+      )}
       <Dialog open={compose} onOpenChange={setCompose}>
         <DialogContent className="panel-dialog">
           <DialogTitle>Record manual outreach</DialogTitle>

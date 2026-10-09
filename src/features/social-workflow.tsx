@@ -157,7 +157,7 @@ export function SocialWorkflow({
             <div>
               <strong>{record.name}</strong>
               <br />
-              Your {mode === "demo" ? "sample" : "stored"} business · Local ID {record.id}
+              Your {mode === "demo" ? "sample" : "stored"} business
               <br />
               <span className="break-all">Place ID: {record.google_place_id}</span>
             </div>
