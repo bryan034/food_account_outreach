@@ -1,0 +1,22 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { SettingsPage } from "@/features/settings";
+export const Route = createFileRoute("/settings")({
+  head: () => ({
+    meta: [
+      { title: "Workspace Settings — Foodfolio" },
+      {
+        name: "description",
+        content:
+          "Configure your local FastAPI URL, select isolated demo or connected mode, and check backend health.",
+      },
+      { property: "og:title", content: "Workspace Settings — Foodfolio" },
+      {
+        property: "og:description",
+        content: "Manage demo mode, local FastAPI connection and workspace health.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
+  component: SettingsPage,
+});

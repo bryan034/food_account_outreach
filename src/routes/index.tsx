@@ -1,0 +1,23 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { DiscoverPage } from "@/features/discover";
+export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "Discover Singapore Food Businesses — Foodfolio" },
+      {
+        name: "description",
+        content:
+          "Bryan’s local-first food collaboration workspace. Preview Singapore businesses and prepare thoughtful manual outreach.",
+      },
+      { property: "og:title", content: "Discover Singapore Food Businesses — Foodfolio" },
+      {
+        property: "og:description",
+        content:
+          "Discover food businesses and prepare thoughtful manual outreach in Bryan’s local-first workspace.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
+  component: DiscoverPage,
+});
