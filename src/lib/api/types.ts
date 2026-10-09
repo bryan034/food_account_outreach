@@ -6,6 +6,8 @@ export interface Place {
   formatted_address: string | null;
   primary_type: string | null;
   business_status: string | null;
+  /** Optional: only shown when the backend includes Google opening hours. */
+  regular_opening_hours?: { weekday_descriptions?: string[] | null } | null;
 }
 export interface Discovery {
   places: Place[];
@@ -48,8 +50,16 @@ export const transitions: Record<Status, Status[]> = {
   rejected: [],
   completed: [],
 };
+/** Backward moves to correct a mistaken status change. */
+export const reverts: Record<Status, Status[]> = {
+  sent: [],
+  scheduling: ["sent"],
+  tasting: ["scheduling"],
+  completed: ["tasting"],
+  rejected: ["sent", "scheduling", "tasting"],
+};
 export const canTransition = (from: Status, to: Status) =>
-  from === to || transitions[from].includes(to);
+  from === to || transitions[from].includes(to) || reverts[from].includes(to);
 export function validProfile(raw: string, channel: Channel): string | null {
   try {
     const url = new URL(raw);

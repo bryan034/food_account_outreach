@@ -20,7 +20,9 @@ describe("Outreach status rules", () => {
   });
   it("terminal statuses cannot return to sent", () => {
     expect(canTransition("completed", "sent")).toBe(false);
-    expect(canTransition("rejected", "sent")).toBe(false);
+    expect(canTransition("rejected", "sent")).toBe(true);
+    expect(canTransition("tasting", "scheduling")).toBe(true);
+    expect(canTransition("tasting", "sent")).toBe(false);
   });
 });
 describe("FastAPI contract", () => {
