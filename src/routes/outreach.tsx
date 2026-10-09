@@ -1,0 +1,22 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { OutreachPage } from "@/features/outreach";
+export const Route = createFileRoute("/outreach")({
+  head: () => ({
+    meta: [
+      { title: "Outreach & Collaborations — Foodfolio" },
+      {
+        name: "description",
+        content:
+          "Review original outreach messages and track food collaboration statuses with explicit manual sent confirmation.",
+      },
+      { property: "og:title", content: "Outreach & Collaborations — Foodfolio" },
+      {
+        property: "og:description",
+        content: "Track manually confirmed outreach and food collaboration progress.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
+  component: OutreachPage,
+});
