@@ -9,7 +9,12 @@ interface Workspace {
   api: ApiClient;
   configure: (mode: Mode, base: string) => void;
 }
-const Context = createContext<Workspace | null>(null);
+// Keep one context instance across hot reloads so provider and consumers always match.
+const globalKey = "__foodfolioWorkspaceContext";
+const store = globalThis as typeof globalThis & {
+  [globalKey]?: ReturnType<typeof createContext<Workspace | null>>;
+};
+const Context = (store[globalKey] ??= createContext<Workspace | null>(null));
 const defaultBase = import.meta.env["VITE_API_BASE_URL"] || "http://localhost:8000";
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<Mode>("demo");
