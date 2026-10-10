@@ -13,8 +13,10 @@ def main() -> None:
     arguments = parser.parse_args()
     try:
         result = asyncio.run(enrich_website(arguments.website_url))
+        # arguments.website_url retrieves supplied URL
     except WebsiteFetchError as error:
         parser.exit(status=1, message=f"Website enrichment failed: {error}\n")
+        # exit code 1 = failure
     print(result.model_dump_json(indent=2))
 
 

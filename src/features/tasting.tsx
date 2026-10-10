@@ -2,71 +2,91 @@ import { useEffect, useState } from "react";
 import { CalendarClock, Navigation } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import type { TastingInput } from "@/lib/api/types";
+import { ErrorNote, messageOf, Pending } from "./common";
 
 export interface TastingPlan {
-  when: string; // local datetime "YYYY-MM-DDTHH:mm"
+  when: string;
   address: string;
   notes: string;
 }
-const KEY = "foodfolio.tasting-plans";
-
-// Tasting plans are kept in this browser only; the backend has no tasting fields yet.
-export function loadPlans(): Record<number, TastingPlan> {
-  try {
-    return JSON.parse(localStorage.getItem(KEY) || "{}");
-  } catch {
-    return {};
-  }
+export function planFromApi(plan: TastingInput): TastingPlan {
+  // datetime-local has no timezone. Display and submit Singapore time explicitly.
+  const when = new Date(Date.parse(plan.scheduled_at) + 8 * 3600000).toISOString().slice(0, 16);
+  return { when, address: plan.address, notes: plan.notes };
 }
-export function savePlan(id: number, plan: TastingPlan) {
-  const all = loadPlans();
-  all[id] = plan;
-  localStorage.setItem(KEY, JSON.stringify(all));
+export function planToApi(plan: TastingPlan): TastingInput {
+  return {
+    scheduled_at: new Date(plan.when + ":00+08:00").toISOString(),
+    address: plan.address.trim(),
+    notes: plan.notes,
+  };
 }
 export function formatTasting(when: string) {
-  const d = new Date(when);
-  if (Number.isNaN(d.getTime())) return when;
-  return d.toLocaleString("en-SG", { dateStyle: "medium", timeStyle: "short" });
+  const date = new Date(when + ":00+08:00");
+  return Number.isNaN(date.getTime())
+    ? when
+    : date.toLocaleString("en-SG", {
+        timeZone: "Asia/Singapore",
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
 }
-export function directionsUrl(name: string, address: string, placeId?: string) {
-  const params = new URLSearchParams({ api: "1", destination: address || name });
-  if (placeId && !placeId.startsWith("demo-")) params.set("destination_place_id", placeId);
-  // No origin: Google Maps uses your current location.
+export function directionsUrl(name: string, address: string) {
+  const params = new URLSearchParams({
+    api: "1",
+    destination: address || name,
+    travelmode: "transit",
+  });
   return `https://www.google.com/maps/dir/?${params}`;
 }
-
 export function TastingDialog({
   open,
   onOpenChange,
-  outreachId,
   name,
-  placeId,
+  initialPlan,
   onSaved,
 }: {
   open: boolean;
-  onOpenChange: (o: boolean) => void;
-  outreachId: number;
+  onOpenChange: (open: boolean) => void;
   name: string;
-  placeId?: string;
-  onSaved: (plan: TastingPlan) => void;
+  initialPlan?: TastingInput | null | undefined;
+  onSaved: (plan: TastingInput) => Promise<void>;
 }) {
   const [plan, setPlan] = useState<TastingPlan>({ when: "", address: "", notes: "" });
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
   useEffect(() => {
-    if (open) setPlan(loadPlans()[outreachId] || { when: "", address: "", notes: "" });
-  }, [open, outreachId]);
-  function save() {
-    savePlan(outreachId, plan);
-    onSaved(plan);
-    onOpenChange(false);
+    if (open) {
+      setPlan(initialPlan ? planFromApi(initialPlan) : { when: "", address: "", notes: "" });
+      setError("");
+    }
+  }, [open, initialPlan]);
+  async function save() {
+    setPending(true);
+    setError("");
+    try {
+      await onSaved(planToApi(plan));
+      onOpenChange(false);
+    } catch (error) {
+      setError(messageOf(error));
+    } finally {
+      setPending(false);
+    }
   }
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(open) => {
+        if (!pending) onOpenChange(open);
+      }}
+    >
       <DialogContent className="panel-dialog">
         <DialogTitle>Plan your tasting</DialogTitle>
-        <DialogDescription>{name} · saved on this device only</DialogDescription>
+        <DialogDescription>{name} · date and time in Singapore (SGT)</DialogDescription>
         <div className="form-stack">
           <label>
-            <span className="field-label">Date and time</span>
+            <span className="field-label">Date and time · SGT</span>
             <input
               type="datetime-local"
               className="input-control"
@@ -75,41 +95,43 @@ export function TastingDialog({
             />
           </label>
           <label>
-            <span className="field-label">Address</span>
+            <span className="field-label">Tasting address</span>
             <input
               className="input-control"
-              placeholder="e.g. 42 Duxton Road, Singapore"
               value={plan.address}
               onChange={(e) => setPlan({ ...plan, address: e.target.value })}
+              placeholder="Enter the agreed venue address"
             />
           </label>
           <label>
             <span className="field-label">Notes</span>
             <textarea
               className="input-control min-h-20"
-              placeholder="Who to ask for, dishes to try, filming plans…"
               value={plan.notes}
               onChange={(e) => setPlan({ ...plan, notes: e.target.value })}
             />
           </label>
+          <ErrorNote error={error} />
           <div className="flex gap-2 flex-wrap">
-            <Button onClick={save} disabled={!plan.when}>
-              <CalendarClock />
-              Save tasting
+            <Button disabled={pending || !plan.when || !plan.address.trim()} onClick={save}>
+              {pending ? <Pending /> : <CalendarClock />}Save tasting
             </Button>
-            <Button variant="outline" asChild>
-              <a
-                href={directionsUrl(name, plan.address, placeId)}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <Navigation />
-                Directions from my location
-              </a>
-            </Button>
+            {plan.address.trim() && (
+              <Button variant="outline" asChild>
+                <a
+                  href={directionsUrl(name, plan.address)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Navigation />
+                  Directions from my location
+                </a>
+              </Button>
+            )}
           </div>
           <p className="form-help">
-            Directions open in Google Maps in a new tab, starting from your current location.
+            Google Maps opens transit directions and asks for your location if needed. Saving
+            persists the plan through your selected workspace API.
           </p>
         </div>
       </DialogContent>

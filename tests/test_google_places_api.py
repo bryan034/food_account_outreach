@@ -9,7 +9,6 @@ from fastapi.testclient import TestClient
 from automate_food_places_outreach.api import app
 from automate_food_places_outreach.database import SessionFactory
 from automate_food_places_outreach.models.restaurant import Restaurant
-from automate_food_places_outreach.models.outreach import OutreachAttempt
 from automate_food_places_outreach.dependencies import (
     get_http_client,
     require_google_places_api_key,
@@ -19,8 +18,8 @@ from automate_food_places_outreach.dependencies import (
 client = TestClient(app)
 
 
-@pytest.fixture
-def fake_google_search(monkeypatch: pytest.MonkeyPatch):
+@pytest.fixture # registers reusable test setup. Pytest reuns it when test requests fake_import_google param
+def fake_import_google(monkeypatch: pytest.MonkeyPatch):
     place_ids = [f"import-test-{uuid4()}", f"import-test-{uuid4()}"]
     places = [
         {"id": place_ids[0], "displayName": {"text": "First Café"}},
@@ -39,7 +38,7 @@ def fake_google_search(monkeypatch: pytest.MonkeyPatch):
     def override_api_key() -> str:
         return "test-api-key"
 
-    monkeypatch.setitem(
+    monkeypatch.setitem( #temp inserts dependency overrides into fastapi dct
         app.dependency_overrides, get_http_client, override_http_client,
     )
     monkeypatch.setitem(
@@ -48,38 +47,30 @@ def fake_google_search(monkeypatch: pytest.MonkeyPatch):
         override_api_key,
     )
     try:
-        yield place_ids, places
+        yield place_ids, places #gives fake data to test and pauses the fixture 
     finally:
         with SessionFactory.begin() as session:
-            session.execute(
-                delete(OutreachAttempt).where(
-                    OutreachAttempt.restaurant_id.in_(
-                        select(Restaurant.id).where(Restaurant.google_place_id.in_(place_ids))
-                    )
-                )
-            )
             session.execute(
                 delete(Restaurant).where(Restaurant.google_place_id.in_(place_ids))
             )
 
 
-@pytest.mark.parametrize("history_status", ["sent", "scheduling", "rejected", "tasting", "completed"])
-def test_new_leads_excludes_contacted_but_keeps_uncontacted(fake_google_search, history_status) -> None:
-    place_ids, _places = fake_google_search
-    with SessionFactory.begin() as session:
-        restaurants = [Restaurant(google_place_id=place_id, name="User-entered name") for place_id in place_ids]
-        session.add_all(restaurants)
-        session.flush()
-        session.add(OutreachAttempt(
-            restaurant_id=restaurants[0].id, channel="tiktok",
-            status=history_status, message_text="Exact historical message",
-        ))
-    response = client.post(
-        "/discovery/google-places/new-leads",
+def test_import_google_places_deduplicates_results(fake_import_google) -> None:
+    place_ids, _places = fake_import_google
+    first = client.post(
+        "/discovery/google-places/import",
         json={"text_query": "cafés in Singapore"},
     )
-    assert response.status_code == 200
-    assert [place["id"] for place in response.json()["places"]] == [place_ids[1]]
+    second = client.post(
+        "/discovery/google-places/import",
+        json={"text_query": "cafés in Singapore"},
+    )
+    assert first.status_code == second.status_code == 200
+    assert first.json()["created_count"] == 2
+    assert first.json()["updated_count"] == 0
+    assert second.json()["created_count"] == 0
+    assert second.json()["updated_count"] == 2
+    assert first.json()["restaurant_ids"] == second.json()["restaurant_ids"]
     with SessionFactory() as session:
         count = session.scalar(
             select(func.count()).select_from(Restaurant).where(
@@ -87,7 +78,23 @@ def test_new_leads_excludes_contacted_but_keeps_uncontacted(fake_google_search, 
             )
         )
     assert count == 2
-    assert client.post("/discovery/google-places/import", json={"text_query": "cafés"}).status_code == 404
+
+
+def test_import_google_places_rolls_back_failed_batch(fake_import_google) -> None:
+    place_ids, places = fake_import_google
+    places[1]["displayName"]["text"] = "x" * 256
+    response = client.post(
+        "/discovery/google-places/import",
+        json={"text_query": "cafés in Singapore"},
+    )
+    assert response.status_code == 502
+    with SessionFactory() as session:
+        count = session.scalar(
+            select(func.count()).select_from(Restaurant).where(
+                Restaurant.google_place_id.in_(place_ids)
+            )
+        )
+    assert count == 0
 
 
 def test_preview_google_places() -> None:

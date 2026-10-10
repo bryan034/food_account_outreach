@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
 
 class RestaurantCreate(BaseModel):
@@ -23,12 +23,28 @@ class RestaurantRead(RestaurantCreate): #response schema inherits google_place_i
 
     # wo from_attributes = True, pydantic expects dict style inputs like id
     id: int
+    category: str | None = None
+    address: str | None = None
+    area: str | None = None
+    website_url: str | None = None
 
 class RestaurantUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str = Field(
         min_length=1,
         max_length=255,
     )
+    category: str | None = Field(default=None, max_length=100)
+    address: str | None = Field(default=None, max_length=2000)
+    area: str | None = Field(default=None, max_length=100)
+    website_url: HttpUrl | None = None
+
+    @field_validator("name")
+    @classmethod
+    def meaningful_name(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Business name must contain text")
+        return value.strip()
 
 
 class RestaurantDiscoveryData(BaseModel):

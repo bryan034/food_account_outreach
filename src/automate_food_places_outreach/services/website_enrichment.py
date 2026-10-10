@@ -1,5 +1,5 @@
-import re
-from urllib.parse import unquote, urljoin, urlsplit
+import re #python's regular expression module. describe text patterns 
+from urllib.parse import unquote, urljoin, urlsplit #unquote decodes url escapes: %40 becomes @
 
 from bs4 import BeautifulSoup
 
@@ -16,11 +16,11 @@ INSTAGRAM_NON_PROFILE_PATHS = {
 
 def parse_contact_link(href: str, source_url: str) -> ContactCandidate | None:
     absolute_url = urljoin(source_url, href.strip())
-    parts = urlsplit(absolute_url)
+    parts = urlsplit(absolute_url) #splits url into scheme, hostname, path, query
 
     if parts.scheme == "mailto":
         email = unquote(parts.path).strip()
-        if EMAIL_PATTERN.fullmatch(email) is None:
+        if EMAIL_PATTERN.fullmatch(email) is None: #requires email to fully match re.compile() pattern above
             return None
         local, domain = email.rsplit("@", 1)
         value = f"{local}@{domain.lower()}"
@@ -31,7 +31,7 @@ def parse_contact_link(href: str, source_url: str) -> ContactCandidate | None:
 
     if parts.scheme not in {"http", "https"} or parts.username or parts.password:
         return None
-    if parts.port not in {None, 80, 443}:
+    if parts.port not in {None, 80, 443}: #these are the conventional http/https ports. reject unusual ports
         return None
 
     host = parts.hostname
@@ -60,11 +60,11 @@ def parse_contact_link(href: str, source_url: str) -> ContactCandidate | None:
 
 
 def extract_contacts(html: str, source_url: str) -> list[ContactCandidate]:
-    soup = BeautifulSoup(html, "html.parser")
+    soup = BeautifulSoup(html, "html.parser") #parses supplied html, doesnt download anyth
     contacts: list[ContactCandidate] = []
     seen: set[tuple[str, str]] = set()
 
-    for link in soup.find_all("a", href=True):
+    for link in soup.find_all("a", href=True): #finds all <a> elem w href attribute
         href = link.get("href")
         if not isinstance(href, str):
             continue

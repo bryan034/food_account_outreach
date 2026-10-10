@@ -8,10 +8,14 @@ from automate_food_places_outreach.schemas.outreach import OutreachStatus
 
 ALLOWED_TRANSITIONS = {
     OutreachStatus.SENT: {OutreachStatus.SCHEDULING, OutreachStatus.REJECTED},
-    OutreachStatus.SCHEDULING: {OutreachStatus.TASTING, OutreachStatus.REJECTED},
-    OutreachStatus.TASTING: {OutreachStatus.COMPLETED, OutreachStatus.REJECTED},
-    OutreachStatus.REJECTED: set(),
-    OutreachStatus.COMPLETED: set(),
+    OutreachStatus.SCHEDULING: {OutreachStatus.SENT, OutreachStatus.TASTING, OutreachStatus.REJECTED},
+    OutreachStatus.TASTING: {OutreachStatus.SCHEDULING, OutreachStatus.COMPLETED, OutreachStatus.REJECTED},
+    OutreachStatus.REJECTED: {OutreachStatus.SENT, OutreachStatus.SCHEDULING, OutreachStatus.TASTING},
+    OutreachStatus.COMPLETED: {OutreachStatus.TASTING},
+    OutreachStatus.EMAIL_APPROVED: set(),
+    OutreachStatus.EMAIL_SENDING: set(),
+    OutreachStatus.EMAIL_FAILED: set(),
+    OutreachStatus.EMAIL_UNKNOWN: set(),
 }
 
 

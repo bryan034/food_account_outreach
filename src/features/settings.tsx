@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { ErrorNote, messageOf, Pending } from "./common";
 import { PageFooter } from "./shell";
 import { useWorkspace } from "./workspace";
+import { GmailConnection } from "./gmail-connection";
+import { CreatorProfileSettings } from "./creator-profile";
 export function SettingsPage() {
   const { base, mode, configure, api } = useWorkspace();
   const [url, setUrl] = useState(base);
@@ -59,6 +61,7 @@ export function SettingsPage() {
       <p className="page-description">
         Choose how your workspace connects. External credentials always stay in FastAPI.
       </p>
+      <CreatorProfileSettings />
       <section className="settings-section settings-grid mt-4">
         <div>
           <h2>Workspace mode</h2>
@@ -217,16 +220,16 @@ export function SettingsPage() {
         <div className="settings-content">
           <ul className="text-xs text-muted-foreground space-y-3 leading-7 list-disc pl-4">
             <li>
-              Contact storage and website enrichment are not connected. Extracted contacts will
-              remain unverified until confirmed.
+              Website emails retain public sources and require review before sending. Extraction
+              cannot prove mailbox delivery or business ownership by itself.
             </li>
             <li>
-              Contact priority will be Email → TikTok → Instagram. Email sending, AI-generated
-              messages and creator statistics are future backend capabilities.
+              Gmail sends approved emails. AI-generated messages, automatic contact routing,
+              inbox/reply and bounce tracking are not connected yet.
             </li>
             <li>
-              There is no restaurant-list or Place-ID lookup endpoint. Existing local IDs must be
-              entered manually.
+              Business records are created automatically after confirmed outreach. You do not need
+              to enter a local ID or add each discovery result separately.
             </li>
             <li>
               Discovery pagination is unavailable. Returned next-page tokens are preserved, not
@@ -240,6 +243,7 @@ export function SettingsPage() {
           </ul>
         </div>
       </section>
+      <GmailConnection />
       <PageFooter />
     </div>
   );

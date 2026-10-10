@@ -5,6 +5,7 @@ import json
 import pytest
 from automate_food_places_outreach.google_places import (
 search_places,
+get_place_details,
 )
 
 
@@ -100,3 +101,22 @@ def test_search_places_raises_for_http_error() -> None:
         asyncio.run(run_search())
 
     assert error.value.response.status_code == 403
+
+
+def test_details_requests_and_parses_opening_hours():
+    def fake_google(request):
+        assert request.method == "GET"
+        assert request.url.path == "/v1/places/place-123"
+        assert request.headers["X-Goog-Api-Key"] == "test-api-key"
+        assert "regularOpeningHours.weekdayDescriptions" in request.headers["X-Goog-FieldMask"]
+        return httpx2.Response(200, json={
+            "id": "place-123", "displayName": {"text": "Example Café"},
+            "regularOpeningHours": {"weekdayDescriptions": ["Monday: 9:00 AM – 5:00 PM"]},
+        })
+
+    async def run():
+        async with httpx2.AsyncClient(transport=httpx2.MockTransport(fake_google)) as client:
+            return await get_place_details(client, api_key="test-api-key", place_id="place-123")
+
+    result = asyncio.run(run())
+    assert result.regular_opening_hours.weekday_descriptions == ["Monday: 9:00 AM – 5:00 PM"]

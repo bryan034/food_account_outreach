@@ -22,6 +22,7 @@ export function createApiClient(base: string): ApiClient {
     try {
       response = await fetch(`${base.replace(/\/$/, "")}${path}`, {
         method,
+        credentials: "include",
         ...(data !== undefined
           ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }
           : {}),
@@ -49,11 +50,26 @@ export function createApiClient(base: string): ApiClient {
         readable || fallback[response.status] || `Request failed (${response.status}).`,
       );
     }
-    return response.json();
+    return response.status === 204 ? (undefined as T) : response.json();
   }
   return {
+    creatorProfile: () => request("/creator-profile"),
+    saveCreatorProfile: (input) => request("/creator-profile", "PATCH", input),
+    geminiStatus: () => request("/gemini/status"),
+    generateDraft: (input) => request("/outreach/drafts/generate", "POST", input),
     health: () => request("/health"),
     discover: (text_query) => request("/discovery/google-places/new-leads", "POST", { text_query }),
+    placeDetails: (id, nameOnly = false) =>
+      request(
+        `/discovery/google-places/${encodeURIComponent(id)}/details${nameOnly ? "?name_only=true" : ""}`,
+      ),
+    contacts: (id) =>
+      request(`/discovery/google-places/${encodeURIComponent(id)}/contacts`, "POST"),
+    gmailStatus: () => request("/gmail/status"),
+    gmailConnect: () => request("/gmail/connect", "POST"),
+    gmailDisconnect: () => request("/gmail/connection", "DELETE"),
+    approveEmail: (input) => request("/outreach/email/approve", "POST", input),
+    sendEmail: (id) => request(`/outreach/${id}/email/send`, "POST", { approved: true }),
     createRestaurant: async (input) => {
       const record = await request<Restaurant>("/restaurants", "POST", input);
       cache.set(record.id, Promise.resolve(record));
@@ -70,6 +86,11 @@ export function createApiClient(base: string): ApiClient {
       }
       return pending;
     },
+    updateRestaurant: async (id, input) => {
+      const record = await request<Restaurant>(`/restaurants/${id}`, "PATCH", input);
+      cache.set(id, Promise.resolve(record));
+      return record;
+    },
     outreach: (offset, limit) => {
       if (
         offset < 0 ||
@@ -82,6 +103,8 @@ export function createApiClient(base: string): ApiClient {
       return request<Outreach[]>(`/outreach?offset=${offset}&limit=${limit}`);
     },
     markSent: (input) => request("/outreach/mark-sent", "POST", input),
-    changeStatus: (id, status) => request(`/outreach/${id}/status`, "PATCH", { status }),
+    markPlaceSent: (input) => request("/outreach/from-place/mark-sent", "POST", input),
+    changeStatus: (id, status, tasting) =>
+      request(`/outreach/${id}/status`, "PATCH", { status, ...(tasting ? { tasting } : {}) }),
   };
 }

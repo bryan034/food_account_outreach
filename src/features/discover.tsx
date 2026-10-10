@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import {
   ArrowRight,
   Coffee,
@@ -18,6 +18,7 @@ import cafeImage from "@/assets/cafe-editorial.jpg";
 import { ErrorNote, messageOf, Pending } from "./common";
 import { PageFooter } from "./shell";
 import { useWorkspace } from "./workspace";
+import { SocialWorkflow } from "./social-workflow";
 export function DiscoverPage() {
   const { api, mode } = useWorkspace();
   const [query, setQuery] = useState("");
@@ -26,7 +27,25 @@ export function DiscoverPage() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [searched, setSearched] = useState(false);
+  const [detailsPending, setDetailsPending] = useState(false);
+  const [detailsError, setDetailsError] = useState("");
+  const [composePlace, setComposePlace] = useState<Place | null>(null);
+  const detailsRequest = useRef(0);
   const displayed = result || (mode === "demo" ? demoDiscovery : null);
+  async function openDetails(place: Place) {
+    const request = ++detailsRequest.current;
+    setSelected(place);
+    setDetailsPending(true);
+    setDetailsError("");
+    try {
+      const details = await api.placeDetails(place.id);
+      if (request === detailsRequest.current) setSelected(details);
+    } catch (e) {
+      if (request === detailsRequest.current) setDetailsError(messageOf(e));
+    } finally {
+      if (request === detailsRequest.current) setDetailsPending(false);
+    }
+  }
   async function search(e: FormEvent) {
     e.preventDefault();
     if (pending || !query.trim()) return;
@@ -163,7 +182,7 @@ export function DiscoverPage() {
                 <Button
                   className="detail-button"
                   variant="ghost"
-                  onClick={() => setSelected(place)}
+                  onClick={() => void openDetails(place)}
                   aria-label={`View ${place.display_name.text} details`}
                 >
                   View details
@@ -195,8 +214,8 @@ export function DiscoverPage() {
       <div className="result-note">
         <Info size={13} className="shrink-0 mt-0.5" />
         <span>
-          Discovery results are previews, not saved records. Only businesses you explicitly add
-          become local records.
+          No separate business record is needed. Your backend records the business automatically
+          when you confirm that you sent outreach.
           {displayed?.next_page_token && (
             <>
               <br />A next-page token was returned and preserved. Additional pages are not
@@ -209,7 +228,10 @@ export function DiscoverPage() {
       <Dialog
         open={!!selected}
         onOpenChange={(open) => {
-          if (!open) setSelected(null);
+          if (!open) {
+            detailsRequest.current++;
+            setSelected(null);
+          }
         }}
       >
         <DialogContent className="panel-dialog">
@@ -239,7 +261,10 @@ export function DiscoverPage() {
               </dl>
               <div className="panel-section">
                 <h3>Opening hours</h3>
-                {selected.regular_opening_hours?.weekday_descriptions?.length ? (
+                <ErrorNote error={detailsError} />
+                {detailsPending ? (
+                  <p className="form-help">Loading opening hours…</p>
+                ) : selected.regular_opening_hours?.weekday_descriptions?.length ? (
                   <ul className="text-sm space-y-1">
                     {selected.regular_opening_hours.weekday_descriptions.map((d) => (
                       <li key={d}>{d}</li>
@@ -249,16 +274,48 @@ export function DiscoverPage() {
                   <p className="form-help">Opening hours are not available for this business.</p>
                 )}
               </div>
+              <Button
+                onClick={() => {
+                  setComposePlace(selected);
+                  detailsRequest.current++;
+                  setSelected(null);
+                }}
+              >
+                Prepare outreach
+              </Button>
               <div className="panel-section">
-                <h3>
-                  Contact information <span className="coming-badge ml-2">Coming later</span>
-                </h3>
+                <h3>Contact information</h3>
                 <p className="form-help">
-                  Website enrichment and contact storage are not connected. No contacts have been
-                  extracted or verified. Email outreach is a future capability.
+                  Select Email in Prepare outreach to look for public business emails and review
+                  their source pages. Social messages remain manual.
                 </p>
               </div>
             </>
+          )}
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={!!composePlace}
+        onOpenChange={(open) => {
+          if (!open) setComposePlace(null);
+        }}
+      >
+        <DialogContent className="panel-dialog">
+          <DialogTitle>Contact {composePlace?.display_name.text}</DialogTitle>
+          <DialogDescription>
+            Email sends through connected Gmail after approval. TikTok and Instagram remain manual.
+          </DialogDescription>
+          {composePlace && (
+            <SocialWorkflow
+              key={composePlace.id}
+              place={composePlace}
+              onRecorded={() => {
+                setResult({
+                  ...(displayed || { places: [], next_page_token: null }),
+                  places: (displayed?.places || []).filter((p) => p.id !== composePlace.id),
+                });
+              }}
+            />
           )}
         </DialogContent>
       </Dialog>

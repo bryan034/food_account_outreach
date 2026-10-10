@@ -38,3 +38,10 @@ def test_non_contacts_and_spoofed_domains_are_ignored():
         "https://example.com",
     )
     assert contacts == []
+
+
+def test_visible_text_email_is_sourced_but_scripts_are_ignored():
+    contacts = extract_contacts('<p>Contact hello@example.com</p><script>secret@example.com</script><style>other@example.com</style>', "https://example.com/contact")
+    assert [contact.value for contact in contacts] == ["hello@example.com"]
+    assert contacts[0].source_url == "https://example.com/contact"
+    assert not contacts[0].verified

@@ -136,6 +136,7 @@ def test_read_restaurant_endpoint() -> None:
             "id": restaurant_id,
             "google_place_id": google_place_id,
             "name": "Readable Test Café",
+            "category": None, "address": None, "area": None, "website_url": None,
         }
     finally:
         with SessionFactory.begin() as session:
@@ -184,6 +185,7 @@ def test_update_restaurant_endpoint() -> None:
             "id": restaurant_id,
             "google_place_id": google_place_id,
             "name": "New API Name",
+            "category": None, "address": None, "area": None, "website_url": None,
         }
 
         with SessionFactory() as session:

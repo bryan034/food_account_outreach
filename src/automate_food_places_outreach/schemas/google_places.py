@@ -14,6 +14,10 @@ class GoogleLocalizedText(BaseModel):
     text: str
 
 
+class GoogleOpeningHours(BaseModel):
+    weekday_descriptions: list[str] = Field(default_factory=list, alias="weekdayDescriptions")
+
+
 class GooglePlace(BaseModel):
     id: str
     display_name: GoogleLocalizedText = Field(alias="displayName")
@@ -29,6 +33,8 @@ class GooglePlace(BaseModel):
         default=None,
         alias="businessStatus",
     )
+    regular_opening_hours: GoogleOpeningHours | None = Field(default=None, alias="regularOpeningHours")
+    website_url: str | None = Field(default=None, alias="websiteUri")
 
 class GoogleTextSearchResponse(BaseModel):
     places: list[GooglePlace] = Field(default_factory=list)
@@ -39,4 +45,3 @@ class GoogleTextSearchResponse(BaseModel):
 
 class GoogleTextSearchRequest(BaseModel):
     text_query: SearchQuery
-

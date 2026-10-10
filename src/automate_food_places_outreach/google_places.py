@@ -1,8 +1,23 @@
 import httpx2 #provides async http client, replaces requests
+from urllib.parse import quote
 
 from automate_food_places_outreach.schemas.google_places import (
+    GooglePlace,
     GoogleTextSearchResponse,
 )
+
+
+async def get_place_details(client: httpx2.AsyncClient, *, api_key: str, place_id: str, name_only: bool = False) -> GooglePlace:
+    response = await client.get(
+        f"https://places.googleapis.com/v1/places/{quote(place_id, safe='')}",
+        headers={
+            "X-Goog-Api-Key": api_key,
+            "X-Goog-FieldMask": "id,displayName" if name_only else "id,displayName,formattedAddress,primaryType,businessStatus,regularOpeningHours.weekdayDescriptions,websiteUri",
+        },
+        params={"languageCode": "en"},
+    )
+    response.raise_for_status()
+    return GooglePlace.model_validate(response.json())
 
 
 TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"

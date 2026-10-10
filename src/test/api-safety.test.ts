@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApiClient, ApiError } from "@/lib/api/client";
 import { createDemoClient } from "@/lib/api/demo";
 import { canTransition, transitions, validProfile } from "@/lib/api/types";
+import { directionsUrl, planFromApi, planToApi } from "@/features/tasting";
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -26,6 +27,88 @@ describe("Outreach status rules", () => {
   });
 });
 describe("FastAPI contract", () => {
+  it("refreshes the restaurant cache after saving editable notes", async () => {
+    const fetcher = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: 23, google_place_id: "place-123", name: "Old" })),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: 23, google_place_id: "place-123", name: "New" })),
+      );
+    const api = createApiClient("http://127.0.0.1:8000");
+    await api.restaurant(23);
+    await api.updateRestaurant(23, { name: "New" });
+    expect((await api.restaurant(23)).name).toBe("New");
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher.mock.calls[1]?.[1]?.method).toBe("PATCH");
+  });
+  it("uses separate immutable approval and send endpoints, with OAuth cookies", async () => {
+    const fetcher = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => new Response('{"id":17}'));
+    const api = createApiClient("http://localhost:8000");
+    const input = {
+      google_place_id: "place-123",
+      recipient: "hello@example.com",
+      source_url: "https://example.com/contact",
+      subject: "A café collaboration",
+      message_text: "Exact content",
+      approved: true as const,
+      verified_public_business_email: true as const,
+    };
+    const approved = await api.approveEmail(input);
+    await api.sendEmail(approved.id);
+    expect(fetcher.mock.calls[0]?.[0]).toBe("http://localhost:8000/outreach/email/approve");
+    expect(JSON.parse(fetcher.mock.calls[0]?.[1]?.body as string)).toEqual(input);
+    expect(fetcher.mock.calls[1]?.[0]).toBe("http://localhost:8000/outreach/17/email/send");
+    expect(JSON.parse(fetcher.mock.calls[1]?.[1]?.body as string)).toEqual({ approved: true });
+    expect(fetcher.mock.calls[0]?.[1]?.credentials).toBe("include");
+  });
+  it("handles a successful disconnect with no response body", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 204 }));
+    await expect(
+      createApiClient("http://localhost:8000").gmailDisconnect(),
+    ).resolves.toBeUndefined();
+  });
+  it("fetches opening hours only through an explicit detail request", async () => {
+    const fetcher = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}"));
+    const api = createApiClient("http://localhost:8000");
+    expect(fetcher).not.toHaveBeenCalled();
+    await api.placeDetails("place-123");
+    expect(fetcher).toHaveBeenCalledWith(
+      "http://localhost:8000/discovery/google-places/place-123/details",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+  it("records a discovered place without a separate restaurant-creation request", async () => {
+    const fetcher = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}"));
+    const input = {
+      google_place_id: "place-123",
+      channel: "tiktok" as const,
+      message_text: "Exact sent text",
+      confirmed_sent: true as const,
+    };
+    await createApiClient("http://localhost:8000").markPlaceSent(input);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher).toHaveBeenCalledWith(
+      "http://localhost:8000/outreach/from-place/mark-sent",
+      expect.objectContaining({ method: "POST", body: JSON.stringify(input) }),
+    );
+  });
+  it("saves the tasting plan and status together", async () => {
+    const fetcher = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}"));
+    const tasting = {
+      scheduled_at: "2026-11-01T11:00:00.000Z",
+      address: "42 Test Road",
+      notes: "",
+    };
+    await createApiClient("http://localhost:8000").changeStatus(105, "tasting", tasting);
+    expect(JSON.parse(fetcher.mock.calls[0]?.[1]?.body as string)).toEqual({
+      status: "tasting",
+      tasting,
+    });
+  });
   it("does not discover until explicitly called and does not retry failures", async () => {
     const fetcher = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline"));
     const api = createApiClient("http://localhost:8000");
@@ -110,7 +193,49 @@ describe("FastAPI contract", () => {
     });
   });
 });
+describe("Tasting time and directions", () => {
+  it("round trips Singapore time independently of the computer timezone", () => {
+    const plan = { when: "2026-11-01T19:00", address: "42 Test Road", notes: "" };
+    expect(planToApi(plan).scheduled_at).toBe("2026-11-01T11:00:00.000Z");
+    expect(planFromApi(planToApi(plan))).toEqual(plan);
+  });
+  it("leaves origin to Google Maps instead of storing current location", () => {
+    const url = new URL(directionsUrl("Test Café", "42 Test Road"));
+    expect(url.searchParams.get("destination")).toBe("42 Test Road");
+    expect(url.searchParams.has("destination_place_id")).toBe(false);
+    expect(url.searchParams.get("travelmode")).toBe("transit");
+    expect(url.searchParams.has("origin")).toBe(false);
+  });
+});
 describe("Demo isolation and social links", () => {
+  it("simulates email without Google requests and never sends twice", async () => {
+    vi.useFakeTimers();
+    const fetcher = vi.spyOn(globalThis, "fetch");
+    const api = createDemoClient();
+    const run = (async () => {
+      expect((await api.gmailStatus()).connected).toBe(true);
+      expect((await api.contacts("demo-cafe-1"))[0]?.value).toBe("collabs@example.com");
+      const approved = await api.approveEmail({
+        google_place_id: "demo-cafe-1",
+        recipient: "collabs@example.com",
+        source_url: "https://example.com/contact",
+        subject: "Sample",
+        message_text: "Sample text",
+        approved: true,
+        verified_public_business_email: true,
+      });
+      expect(approved.sent_at).toBeNull();
+      expect((await api.sendEmail(approved.id)).status).toBe("sent");
+      await expect(api.sendEmail(approved.id)).rejects.toMatchObject({ status: 409 });
+    })();
+    try {
+      await vi.runAllTimersAsync();
+      await run;
+      expect(fetcher).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it("all demo operations make no live requests", async () => {
     vi.useFakeTimers();
     const fetcher = vi.spyOn(globalThis, "fetch");

@@ -12,6 +12,9 @@ from alembic import context
 from automate_food_places_outreach.models.base import Base
 from automate_food_places_outreach.models.restaurant import Restaurant
 from automate_food_places_outreach.models.outreach import OutreachAttempt
+from automate_food_places_outreach.models.tasting import Tasting
+from automate_food_places_outreach.models.email import Contact, GmailAccount, ApprovedEmail
+from automate_food_places_outreach.models.drafting import CreatorProfile, OutreachDraft
 # even tho Restaurant not called in this file, import itself has required registration effect to register restaurants table in Base.metadata
 
 # this is the Alembic Config object, which provides

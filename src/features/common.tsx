@@ -5,7 +5,7 @@ export function StatusBadge({ status }: { status: Status }) {
   return (
     <span className={`status-badge status-${status}`}>
       <span className="status-dot" />
-      {status.charAt(0).toUpperCase() + status.slice(1)}
+      {status.charAt(0).toUpperCase() + status.slice(1).replaceAll("_", " ")}
     </span>
   );
 }
@@ -22,7 +22,8 @@ export function Pending() {
 }
 export const messageOf = (error: unknown) =>
   error instanceof Error ? error.message : "Something went wrong. Please try again.";
-export function formatDate(value: string) {
+export function formatDate(value: string | null) {
+  if (!value) return "Not sent";
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? "Unknown date"
